@@ -1,7 +1,8 @@
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
 from motelcasino.models import Room
-import datetime
+from django.views.decorators.csrf import csrf_exempt
+import datetime, json
 
 room_numbers = [102, 103, 104, 105]
 
@@ -51,9 +52,8 @@ def rooms_available(request):
         response.append({"room_number":nn, "style":style[nn], "score":score[nn]})
     return JsonResponse(response, safe=False)
 
+@csrf_exempt
 def book(request):
-    name, room_number, checkin, checkout = request.GET["name"], request.GET["room_number"], request.GET["checkin"], request.GET["checkout"]
-    checkin, checkout = preprocessDates(checkin, start=True), preprocessDates(checkout, start=False)
-    room = Room(name=name, room_number=room_number, checkin=checkin, checkout=checkout)
-    room.save()
-    return HttpResponse("room booked successfully")
+    data = json.loads(request.body.decode('utf-8'))
+    print(data)
+    return HttpResponse(201)
