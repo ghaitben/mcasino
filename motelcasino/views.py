@@ -19,11 +19,6 @@ score = {
     105 : 2
 }
 
-
-def fetch(room_number):
-    query = Room.objects.values("checkin", "checkout").filter(room_number__exact=room_number)
-    return list(map(lambda x: (x["checkin"], x["checkout"]), query))
-
 def preprocessDates(date : str, start=False):
     date = date.split('-')
     date = list(map(int, date))
@@ -33,9 +28,14 @@ def preprocessDates(date : str, start=False):
 def make_naive(datetime):  #remove timezone from datetime
     return datetime.replace(tzinfo=None)
 
+def fetch(room_number):
+    query = Room.objects.values("checkin", "checkout").filter(room_number__exact=room_number)
+    return list(map(lambda x: (x["checkin"], x["checkout"]), query))
+
+
 def rooms_available(request):
-    startDate = preprocessDates(request.GET["startDate"])
-    endDate = preprocessDates(request.GET["endDate"])
+    startDate = preprocessDates(request.GET["startDate"], start=True)
+    endDate = preprocessDates(request.GET["endDate"], start=False)
     free = []
     for room_number in room_numbers:
         times = fetch(room_number)
@@ -50,3 +50,10 @@ def rooms_available(request):
     for nn in free:
         response.append({"room_number":nn, "style":style[nn], "score":score[nn]})
     return JsonResponse(response, safe=False)
+
+def book(request):
+    name, room_number, checkin, checkout = request.GET["name"], request.GET["room_number"], request.GET["checkin"], request.GET["checkout"]
+    checkin, checkout = preprocessDates(checkin, start=True), preprocessDates(checkout, start=False)
+    room = Room(name=name, room_number=room_number, checkin=checkin, checkout=checkout)
+    room.save()
+    return HttpResponse("room booked successfully")
