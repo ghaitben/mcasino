@@ -5,7 +5,6 @@ from django.views.decorators.csrf import csrf_exempt
 import datetime, json
 
 room_numbers = [102, 103, 104, 105]
-cached_free_rooms = set(room_numbers)
 
 style = {
     102 : "2LS",
@@ -28,22 +27,22 @@ def preprocessDates(date : str, start=False):
     return datetime.datetime(date[0], date[1], date[2], 11, 30, 0)
 
 def fetch(room_number):
-    query = Room.objects.values("checkin", "checkout").filter(room_number__exact=room_number)
-    return list(map(lambda x: (x["checkin"], x["checkout"]), query))
+    query = Room.objects.values("checkin", "checkout", "id").filter(room_number__exact=room_number)
+    return list(map(lambda x: (x["checkin"], x["checkout"], x["id"]), query))
 
 def check_free_rooms(startDate, endDate):
     free = []
     for room_number in room_numbers:
         times = fetch(room_number)
+        id = times[0][2]  #take a unique id for the unique key prop problem in react
         room_number_is_free = True
-        for checkin, checkout in times:
+        for checkin, checkout, _ in times:
             if max(startDate, checkin) < min(endDate, checkout):    #I'm checking if the interval of intersection is valid.
                 room_number_is_free = False
-        if room_number_is_free: free.append(room_number)
-    cached_free_rooms = set(free)
+        if room_number_is_free: free.append((room_number, id))
     response = []
-    for nn in free:
-        response.append({"room_number":nn, "style":style[nn], "score":score[nn]})
+    for nn,id in free:
+        response.append({"room_number":nn, "style":style[nn], "score":score[nn], "id":id})
     return response
 
 def rooms_available(request):
@@ -71,9 +70,9 @@ def book(request):
 @csrf_exempt
 def rooms_booked(request):
     today = datetime.datetime.today()
-    query = Room.objects.values("room_number").filter(checkin__lte=today, checkout__gte=today)
-    query = list(map(lambda x:int(x["room_number"]), query))
+    query = Room.objects.values("id","room_number").filter(checkin__lte=today, checkout__gte=today)
+    query = list(map(lambda x:(int(x["room_number"]),x["id"]), query))
     response = []
-    for nn in query:
-        response.append({"room_number":nn, "style":style[nn], "score":score[nn]})
+    for nn,id in query:
+        response.append({"room_number":nn, "style":style[nn], "score":score[nn], "id":id})
     return JsonResponse(response, safe=False)
