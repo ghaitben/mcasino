@@ -27,7 +27,6 @@ def preprocessDates(date : str, start=False):
     if start: return datetime.datetime(date[0], date[1], date[2], 14, 30, 0)
     return datetime.datetime(date[0], date[1], date[2], 11, 30, 0)
 
-
 def fetch(room_number):
     query = Room.objects.values("checkin", "checkout").filter(room_number__exact=room_number)
     return list(map(lambda x: (x["checkin"], x["checkout"]), query))
@@ -46,7 +45,6 @@ def check_free_rooms(startDate, endDate):
     for nn in free:
         response.append({"room_number":nn, "style":style[nn], "score":score[nn]})
     return response
-
 
 def rooms_available(request):
     startDate = preprocessDates(request.GET["startDate"], start=True)
@@ -69,3 +67,13 @@ def book(request):
         return HttpResponse("Room is already full.")
 
     return HttpResponse("Room Booked Successfully.")
+
+@csrf_exempt
+def rooms_booked(request):
+    today = datetime.datetime.today()
+    query = Room.objects.values("room_number").filter(checkin__lte=today, checkout__gte=today)
+    query = list(map(lambda x:int(x["room_number"]), query))
+    response = []
+    for nn in query:
+        response.append({"room_number":nn, "style":style[nn], "score":score[nn]})
+    return JsonResponse(response, safe=False)
