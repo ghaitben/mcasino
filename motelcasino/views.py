@@ -7,10 +7,10 @@ import datetime, json
 room_numbers = [102, 103, 104, 105]
 
 style = {
-    102 : "2LS",
-    103 : "1LS",
-    104 : "2L",
-    105 : "1L"
+    102 : "2 Simple Beds",
+    103 : "1 Simple Bed",
+    104 : "2 QueenSize Bed",
+    105 : "1 QueenSize Bed"
 }
 
 score = {
