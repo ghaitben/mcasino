@@ -30,7 +30,7 @@ def fetch(room_number):
     query = Room.objects.values("checkin", "checkout", "id").filter(room_number__exact=room_number)
     return list(map(lambda x: (x["checkin"], x["checkout"]), query))
 
-def check_free_rooms(startDate, endDate, nBeds):
+def check_free_rooms(startDate, endDate, nBeds=-1):
     free = []
     response = []
     for room_number in room_numbers:
@@ -40,7 +40,7 @@ def check_free_rooms(startDate, endDate, nBeds):
             if max(startDate, checkin) < min(endDate, checkout):    #I'm checking if the interval of intersection is valid.
                 room_number_is_free = False
         if room_number_is_free: free.append(room_number)
-    free = list(filter(lambda x:int(style[x][0]) == int(nBeds), free))
+    if nBeds != -1: free = list(filter(lambda x:int(style[x][0]) == int(nBeds), free))
     ids = list(range(len(free)))
     free = list(zip(free, ids))
     for nn,id in free:
