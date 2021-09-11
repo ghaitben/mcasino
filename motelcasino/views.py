@@ -5,6 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 import datetime, json
 
 room_numbers = [102, 103, 104, 105]
+cached_free_rooms = set(room_numbers)
 
 style = {
     102 : "2LS",
@@ -14,10 +15,10 @@ style = {
 }
 
 score = {
-    102 : 3,
-    103 : 4,
-    104 : 1,
-    105 : 2
+    102 : "***",
+    103 : "****",
+    104 : "*",
+    105 : "**"
 }
 
 def preprocessDates(date : str, start=False):
@@ -26,34 +27,45 @@ def preprocessDates(date : str, start=False):
     if start: return datetime.datetime(date[0], date[1], date[2], 14, 30, 0)
     return datetime.datetime(date[0], date[1], date[2], 11, 30, 0)
 
-def make_naive(datetime):  #remove timezone from datetime
-    return datetime.replace(tzinfo=None)
 
 def fetch(room_number):
     query = Room.objects.values("checkin", "checkout").filter(room_number__exact=room_number)
     return list(map(lambda x: (x["checkin"], x["checkout"]), query))
 
-
-def rooms_available(request):
-    startDate = preprocessDates(request.GET["startDate"], start=True)
-    endDate = preprocessDates(request.GET["endDate"], start=False)
+def check_free_rooms(startDate, endDate):
     free = []
     for room_number in room_numbers:
         times = fetch(room_number)
         room_number_is_free = True
         for checkin, checkout in times:
-            checkin, checkout = make_naive(checkin), make_naive(checkout)
             if max(startDate, checkin) < min(endDate, checkout):    #I'm checking if the interval of intersection is valid.
                 room_number_is_free = False
         if room_number_is_free: free.append(room_number)
-    #free = [102,103,104,105]
+    cached_free_rooms = set(free)
     response = []
     for nn in free:
         response.append({"room_number":nn, "style":style[nn], "score":score[nn]})
+    return response
+
+
+def rooms_available(request):
+    startDate = preprocessDates(request.GET["startDate"], start=True)
+    endDate = preprocessDates(request.GET["endDate"], start=False)
+    response = check_free_rooms(startDate, endDate)
     return JsonResponse(response, safe=False)
 
 @csrf_exempt
 def book(request):
     data = json.loads(request.body.decode('utf-8'))
-    print(data)
-    return HttpResponse(201)
+    name, room_number = data["name"], int(data["roomNumber"])
+    checkin, checkout = preprocessDates(data["startDate"], start=True), preprocessDates(data["endDate"], start=False)
+    freeRooms_JSON = check_free_rooms(checkin, checkout)
+    available_rooms = list(map(lambda x:x["room_number"], freeRooms_JSON))
+
+    if room_number in available_rooms:
+        room = Room(name=name,room_number=room_number,checkin=checkin,checkout=checkout)
+        room.save()
+    else:
+        return HttpResponse("Room is already full.")
+
+    return HttpResponse("Room Booked Successfully.")
