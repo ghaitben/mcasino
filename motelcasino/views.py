@@ -28,19 +28,20 @@ def preprocessDates(date : str, start=False):
 
 def fetch(room_number):
     query = Room.objects.values("checkin", "checkout", "id").filter(room_number__exact=room_number)
-    return list(map(lambda x: (x["checkin"], x["checkout"], x["id"]), query))
+    return list(map(lambda x: (x["checkin"], x["checkout"]), query))
 
 def check_free_rooms(startDate, endDate):
     free = []
+    response = []
     for room_number in room_numbers:
         times = fetch(room_number)
-        id = times[0][2]  #take a unique id for the unique key prop problem in react
         room_number_is_free = True
-        for checkin, checkout, _ in times:
+        for checkin, checkout in times:
             if max(startDate, checkin) < min(endDate, checkout):    #I'm checking if the interval of intersection is valid.
                 room_number_is_free = False
-        if room_number_is_free: free.append((room_number, id))
-    response = []
+        if room_number_is_free: free.append(room_number)
+    ids = list(range(len(free)))
+    free = list(zip(free, ids))
     for nn,id in free:
         response.append({"room_number":nn, "style":style[nn], "score":score[nn], "id":id})
     return response
@@ -76,3 +77,14 @@ def rooms_booked(request):
     for nn,id in query:
         response.append({"room_number":nn, "style":style[nn], "score":score[nn], "id":id})
     return JsonResponse(response, safe=False)
+
+
+@csrf_exempt
+def delete(request):
+    data = json.loads(request.body.decode('utf-8'))
+    id = int(data["id"])
+    try:
+        Room.objects.all().filter(id__exact=id).delete()
+        return HttpResponse("Room freed successfully.")
+    except:
+        return HttpResponse("Something went wrong here.")
