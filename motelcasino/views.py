@@ -30,7 +30,7 @@ def fetch(room_number):
     query = Room.objects.values("checkin", "checkout", "id").filter(room_number__exact=room_number)
     return list(map(lambda x: (x["checkin"], x["checkout"]), query))
 
-def check_free_rooms(startDate, endDate):
+def check_free_rooms(startDate, endDate, nBeds):
     free = []
     response = []
     for room_number in room_numbers:
@@ -40,16 +40,19 @@ def check_free_rooms(startDate, endDate):
             if max(startDate, checkin) < min(endDate, checkout):    #I'm checking if the interval of intersection is valid.
                 room_number_is_free = False
         if room_number_is_free: free.append(room_number)
+    free = list(filter(lambda x:int(style[x][0]) == int(nBeds), free))
     ids = list(range(len(free)))
     free = list(zip(free, ids))
     for nn,id in free:
         response.append({"room_number":nn, "style":style[nn], "score":score[nn], "id":id})
+    response.sort(reverse=False, key=lambda x:len(x["score"]))
     return response
 
 def rooms_available(request):
     startDate = preprocessDates(request.GET["startDate"], start=True)
     endDate = preprocessDates(request.GET["endDate"], start=False)
-    response = check_free_rooms(startDate, endDate)
+    nBeds = request.GET["nBeds"]
+    response = check_free_rooms(startDate, endDate, nBeds)
     return JsonResponse(response, safe=False)
 
 @csrf_exempt
@@ -57,6 +60,7 @@ def book(request):
     data = json.loads(request.body.decode('utf-8'))
     name, room_number = data["name"], int(data["roomNumber"])
     checkin, checkout = preprocessDates(data["startDate"], start=True), preprocessDates(data["endDate"], start=False)
+
     freeRooms_JSON = check_free_rooms(checkin, checkout)
     available_rooms = list(map(lambda x:x["room_number"], freeRooms_JSON))
 
