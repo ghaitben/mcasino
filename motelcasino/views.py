@@ -51,7 +51,7 @@ def check_free_rooms(startDate, endDate, nBeds=-1):
 def rooms_available(request):
     startDate = preprocessDates(request.GET["startDate"], start=True)
     endDate = preprocessDates(request.GET["endDate"], start=False)
-    nBeds = request.GET["nBeds"]
+    nBeds = request.GET.get('nBeds', -1)
     response = check_free_rooms(startDate, endDate, nBeds)
     return JsonResponse(response, safe=False)
 
