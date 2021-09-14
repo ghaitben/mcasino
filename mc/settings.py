@@ -80,9 +80,10 @@ WSGI_APPLICATION = 'mc.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'OPTIONS': {
-            'read_default_file' : '/home/ghait/db/db.cnf'
-        }
+        'NAME': 'desta',
+        'USER': 'root',
+        'PASSWORD': '147258369.Ghait',
+        'HOST': 'localhost'
     }
 }
 
