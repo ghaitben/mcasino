@@ -1,0 +1,427 @@
+filetype plugin indent on
+
+let b:coc_suggest_disable = 1
+let g:lsp_cxx_hl_use_text_props = 1
+set updatetime=300  
+"let b:coc_diagnostic_disable = 1
+"let b:usemarks = 0
+"let g:loaded_matchparen=1
+
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+Plugin 'junegunn/fzf', { 'do': { -> fzf#install() } }
+Plugin 'junegunn/fzf.vim'
+Plugin 'preservim/nerdtree'
+Plugin 'uiiaoo/java-syntax.vim'
+Plugin 'jiangmiao/auto-pairs'
+Plugin 'challenger-deep-theme/vim', {'name': 'challenger-deep-theme'}
+Plugin 'tpope/vim-surround'
+Plugin 'neoclide/coc.nvim', {'branch': 'release'}
+Plugin 'jackguo380/vim-lsp-cxx-highlight'
+call vundle#end()
+
+syntax on
+set mouse=a
+set number
+set backspace=2
+set tabstop=4
+set softtabstop=4
+set shiftwidth=4
+set expandtab
+set clipboard=unnamedplus
+colorscheme challenger_deep
+set termguicolors
+
+highlight link javaIdentifier NONE
+highlight link javaDelimiter NONE
+highlight Normal ctermfg=256 ctermbg=256 guifg=#ffffff guibg=black
+highlight String guifg=yellow
+highlight Identifier guifg=cyan
+highlight Operator guifg=#99ff33
+highlight PreProc guifg=green
+highlight Error NONE
+highlight MatchParen ctermfg=256 ctermbg=21 guifg=white guibg=blue gui=bold
+highlight Statement guifg=red 
+highlight Operator guifg=green
+highlight Repeat guifg=green
+highlight Visual term=reverse ctermbg=21 guibg=blue ctermfg=256 cterm=bold
+highlight LineNr ctermfg=21 guifg=blue guibg=black
+highlight Number guifg=orange
+highlight pythonClass ctermfg=226 cterm=bold
+
+"highlight Function guifg=purple
+highlight cppBoolean guifg=cyan
+highlight cType guifg=cyan
+map  <Esc>:w<CR>:!clear && python3.9 leetcode.py<CR>
+map  :Files .<CR>
+
+
+autocmd BufWinEnter * NERDTreeMirror
+autocmd VimEnter * NERDTree | wincmd p
+autocmd BufEnter * if winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif
+
+let g:autoclose_loaded = 1
+let s:cotstate = &completeopt
+
+if exists('g:autoclose_loaded') || &cp
+    finish
+endif
+
+
+
+if !exists('g:autoclose_on')
+    let g:autoclose_on = 1
+endif
+
+
+" (Toggle) Mappings -----------------------------{{{1
+"
+nmap <Plug>ToggleAutoCloseMappings :call <SID>ToggleAutoCloseMappings()<CR>
+if (!hasmapto( '<Plug>ToggleAutoCloseMappings', 'n' ))
+    nmap <unique> <Leader>a <Plug>ToggleAutoCloseMappings
+endif
+fun <SID>ToggleAutoCloseMappings() " --- {{{2
+    if g:autoclose_on
+        iunmap "
+        iunmap '
+        iunmap (
+        iunmap )
+        iunmap [
+        iunmap ]
+        iunmap {
+        iunmap }
+        iunmap <BS>
+        iunmap <C-h>
+        iunmap <Esc>
+        let g:autoclose_on = 0
+        echo "AutoClose Off"
+    else
+        inoremap <silent> " <C-R>=<SID>QuoteDelim('"')<CR>
+        inoremap <silent> ' <C-R>=match(getline('.')[col('.') - 2],'\w') == 0 && getline('.')[col('.')-1] != "'" ? "'" : <SID>QuoteDelim("'")<CR>
+        inoremap <silent> ( (<C-R>=<SID>CloseStackPush(')')<CR>
+        inoremap ) <C-R>=<SID>CloseStackPop(')')<CR>
+        inoremap <silent> [ [<C-R>=<SID>CloseStackPush(']')<CR>
+        inoremap <silent> ] <C-R>=<SID>CloseStackPop(']')<CR>
+        "inoremap <silent> { {<C-R>=<SID>CloseStackPush('}')<CR>
+        inoremap <silent> { <C-R>=<SID>OpenSpecial('{','}')<CR>
+        inoremap <silent> } <C-R>=<SID>CloseStackPop('}')<CR>
+        inoremap <silent> <BS> <C-R>=<SID>OpenCloseBackspace()<CR>
+        inoremap <silent> <C-h> <C-R>=<SID>OpenCloseBackspace()<CR>
+        inoremap <silent> <Esc> <C-R>=<SID>CloseStackPop('')<CR><Esc>
+        inoremap <silent> <C-[> <C-R>=<SID>CloseStackPop('')<CR><C-[>
+        "the following simply creates an ambiguous mapping so vim fully
+        "processes the escape sequence for terminal keys, see 'ttimeout' for a
+        "rough explanation, this just forces it to work
+        if &term[:4] == "xterm"
+            inoremap <silent> <C-[>OC <RIGHT>
+        endif
+        let g:autoclose_on = 1
+        if a:0 == 0
+            "this if is so this message doesn't show up at load
+            echo "AutoClose On"
+        endif
+    endif
+endf
+let s:closeStack = []
+
+" AutoClose Utilities -----------------------------------------{{{1
+function <SID>OpenSpecial(ochar,cchar) " ---{{{2
+    let line = getline('.')
+    let col = col('.') - 2
+    "echom string(col).':'.line[:(col)].'|'.line[(col+1):]
+    if a:ochar == line[(col)] && a:cchar == line[(col+1)] "&& strlen(line) - (col) == 2
+        "echom string(s:closeStack)
+        while len(s:closeStack) > 0
+            call remove(s:closeStack, 0)
+        endwhile
+        return "\<esc>a\<CR>;\<CR>".a:cchar."\<esc>\"_xk$\"_xa"
+    endif
+    return a:ochar.<SID>CloseStackPush(a:cchar)
+endfunction
+
+function <SID>CloseStackPush(char) " ---{{{2
+    "echom "push"
+    let line = getline('.')
+    let col = col('.')-2
+    if (col) < 0
+        call setline('.',a:char.line)
+    else
+        "echom string(col).':'.line[:(col)].'|'.line[(col+1):]
+        call setline('.',line[:(col)].a:char.line[(col+1):])
+    endif
+    call insert(s:closeStack, a:char)
+    "echom join(s:closeStack,'').' -- '.a:char
+    return ''
+endf
+
+function <SID>JumpOut(char) " ----------{{{2
+    let column = col('.') - 1
+    let line = getline('.')
+    let mcol = match(line[column :], a:char)
+    if a:char != '' &&  mcol >= 0
+        "Yeah, this is ugly but vim actually requires each to be special
+        "cased to avoid screen flashes/not doing the right thing.
+        echom len(line).' '.(column+mcol)
+        if line[column] == a:char
+            return "\<Right>"
+        elseif column+mcol == len(line)-1
+            return "\<C-O>A"
+        else
+            return "\<C-O>f".a:char."\<Right>"
+        endif
+    else
+        return a:char
+    endif
+endf
+function <SID>CloseStackPop(char) " ---{{{2
+    "echom "pop"
+    if(a:char == '')
+        pclose
+    endif
+    if len(s:closeStack) == 0
+        return <SID>JumpOut(a:char)
+    endif
+    let column = col('.') - 1
+    let line = getline('.')
+    let popped = ''
+    let lastpop = ''
+    "echom join(s:closeStack,'').' || '.lastpop
+    while len(s:closeStack) > 0 && ((lastpop == '' && popped == '') || lastpop != a:char)
+        let lastpop = remove(s:closeStack,0)
+        let popped .= lastpop
+        "echom join(s:closeStack,'').' || '.lastpop.' || '.popped
+    endwhile
+    "echom ' --> '.popped
+    if line[column : column+strlen(popped)-1] != popped
+        return <SID>JumpOut('')
+    endif
+    if column > 0
+        call setline('.',line[:column-1].line[(column+strlen(popped)):])
+    else
+        call setline('.','')
+    endif
+    return popped
+endf
+
+function <SID>QuoteDelim(char) " ---{{{2
+  let line = getline('.')
+  let col = col('.')
+  if line[col - 2] == "\\"
+    "Inserting a quoted quotation mark into the string
+    return a:char
+  elseif line[col - 1] == a:char
+    "Escaping out of the string
+    return "\<C-R>=".s:SID()."CloseStackPop(\"\\".a:char."\")\<CR>"
+  else
+    "Starting a string
+    return a:char."\<C-R>=".s:SID()."CloseStackPush(\"\\".a:char."\")\<CR>"
+  endif
+endf
+
+" The strings returned from QuoteDelim aren't in scope for <SID>, so I
+" have to fake it using this function (from the Vim help, but tweaked)
+function s:SID()
+    return matchstr(expand('<sfile>'), '<SNR>\d\+_\zeSID$')
+endfun
+
+function <SID>OpenCloseBackspace() " ---{{{2
+    "if pumvisible()
+    "    pclose
+    "    call <SID>StopOmni()
+    "    return "\<C-E>"
+    "else
+        let curline = getline('.')
+        let curpos = col('.')
+        let curletter = curline[curpos-1]
+        let prevletter = curline[curpos-2]
+        if (prevletter == '"' && curletter == '"') ||
+\          (prevletter == "'" && curletter == "'") ||
+\          (prevletter == "(" && curletter == ")") ||
+\          (prevletter == "{" && curletter == "}") ||
+\          (prevletter == "[" && curletter == "]")
+            if len(s:closeStack) > 0
+                call remove(s:closeStack,0)
+            endif
+            return "\<Delete>\<BS>"
+        else
+            return "\<BS>"
+        endif
+    "endif
+endf
+
+" Initialization ----------------------------------------{{{1
+if g:autoclose_on
+    let g:autoclose_on = 0
+    silent call <SID>ToggleAutoCloseMappings()
+endif
+" vim: set ft=vim ff=unix et sw=4 ts=4 :
+vim600: set foldmethod=marker foldmarker={{{,}}} foldlevel=1 :
+
+
+" Set internal encoding of vim, not needed on neovim, since coc.nvim using some
+" unicode characters in the file autoload/float.vim{{{
+set encoding=utf-8
+
+" TextEdit might fail if hidden is not set.
+set hidden
+
+" Some servers have issues with backup files, see #649.
+set nobackup
+set nowritebackup
+
+" Give more space for displaying messages.
+set cmdheight=2
+
+" Having longer updatetime (default is 4000 ms = 4 s) leads to noticeable
+" delays and poor user experience.
+
+" Don't pass messages to |ins-completion-menu|.
+set shortmess+=c
+
+" Always show the signcolumn, otherwise it would shift the text each time
+" diagnostics appear/become resolved.
+if has("nvim-0.5.0") || has("patch-8.1.1564")
+  " Recently vim can merge signcolumn and number column into one
+  set signcolumn=number
+else
+  set signcolumn=yes
+endif
+
+" Use tab for trigger completion with characters ahead and navigate.
+" NOTE: Use command ':verbose imap <tab>' to make sure tab is not mapped by
+" other plugin before putting this into your config.
+inoremap <silent><expr> <TAB>
+      \ pumvisible() ? "\<C-n>" :
+      \ <SID>check_back_space() ? "\<TAB>" :
+      \ coc#refresh()
+inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
+
+function! s:check_back_space() abort
+  let col = col('.') - 1
+  return !col || getline('.')[col - 1]  =~# '\s'
+endfunction
+
+" Use <c-space> to trigger completion.
+if has('nvim')
+  inoremap <silent><expr> <c-space> coc#refresh()
+else
+  inoremap <silent><expr> <c-@> coc#refresh()
+endif
+
+" Make <CR> auto-select the first completion item and notify coc.nvim to
+" format on enter, <cr> could be remapped by other vim plugin
+inoremap <silent><expr> <cr> pumvisible() ? coc#_select_confirm()
+                              \: "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
+
+" Use `[g` and `]g` to navigate diagnostics
+" Use `:CocDiagnostics` to get all diagnostics of current buffer in location list.
+nmap <silent> [g <Plug>(coc-diagnostic-prev)
+nmap <silent> ]g <Plug>(coc-diagnostic-next)
+
+" GoTo code navigation.
+nmap <silent> gd <Plug>(coc-definition)
+nmap <silent> gy <Plug>(coc-type-definition)
+nmap <silent> gi <Plug>(coc-implementation)
+nmap <silent> gr <Plug>(coc-references)
+
+" Use K to show documentation in preview window.
+nnoremap <silent> K :call <SID>show_documentation()<CR>
+
+function! s:show_documentation()
+  if (index(['vim','help'], &filetype) >= 0)
+    execute 'h '.expand('<cword>')
+  elseif (coc#rpc#ready())
+    call CocActionAsync('doHover')
+  else
+    execute '!' . &keywordprg . " " . expand('<cword>')
+  endif
+endfunction
+
+" Highlight the symbol and its references when holding the cursor.
+autocmd CursorHold * silent call CocActionAsync('highlight')
+
+" Symbol renaming.
+nmap <leader>rn <Plug>(coc-rename)
+
+" Formatting selected code.
+xmap <leader>f  <Plug>(coc-format-selected)
+nmap <leader>f  <Plug>(coc-format-selected)
+
+augroup mygroup
+  autocmd!
+  " Setup formatexpr specified filetype(s).
+  autocmd FileType typescript,json setl formatexpr=CocAction('formatSelected')
+  " Update signature help on jump placeholder.
+  autocmd User CocJumpPlaceholder call CocActionAsync('showSignatureHelp')
+augroup end
+
+" Applying codeAction to the selected region.
+" Example: `<leader>aap` for current paragraph
+xmap <leader>a  <Plug>(coc-codeaction-selected)
+nmap <leader>a  <Plug>(coc-codeaction-selected)
+
+" Remap keys for applying codeAction to the current buffer.
+nmap <leader>ac  <Plug>(coc-codeaction)
+" Apply AutoFix to problem on the current line.
+nmap <leader>qf  <Plug>(coc-fix-current)
+
+" Run the Code Lens action on the current line.
+nmap <leader>cl  <Plug>(coc-codelens-action)
+
+" Map function and class text objects
+" NOTE: Requires 'textDocument.documentSymbol' support from the language server.
+xmap if <Plug>(coc-funcobj-i)
+omap if <Plug>(coc-funcobj-i)
+xmap af <Plug>(coc-funcobj-a)
+omap af <Plug>(coc-funcobj-a)
+xmap ic <Plug>(coc-classobj-i)
+omap ic <Plug>(coc-classobj-i)
+xmap ac <Plug>(coc-classobj-a)
+omap ac <Plug>(coc-classobj-a)
+
+" Remap <C-f> and <C-b> for scroll float windows/popups.
+if has('nvim-0.4.0') || has('patch-8.2.0750')
+  nnoremap <silent><nowait><expr> <C-f> coc#float#has_scroll() ? coc#float#scroll(1) : "\<C-f>"
+  nnoremap <silent><nowait><expr> <C-b> coc#float#has_scroll() ? coc#float#scroll(0) : "\<C-b>"
+  inoremap <silent><nowait><expr> <C-f> coc#float#has_scroll() ? "\<c-r>=coc#float#scroll(1)\<cr>" : "\<Right>"
+  inoremap <silent><nowait><expr> <C-b> coc#float#has_scroll() ? "\<c-r>=coc#float#scroll(0)\<cr>" : "\<Left>"
+  vnoremap <silent><nowait><expr> <C-f> coc#float#has_scroll() ? coc#float#scroll(1) : "\<C-f>"
+  vnoremap <silent><nowait><expr> <C-b> coc#float#has_scroll() ? coc#float#scroll(0) : "\<C-b>"
+endif
+
+" Use CTRL-S for selections ranges.
+" Requires 'textDocument/selectionRange' support of language server.
+nmap <silent> <C-s> <Plug>(coc-range-select)
+xmap <silent> <C-s> <Plug>(coc-range-select)
+
+" Add `:Format` command to format current buffer.
+command! -nargs=0 Format :call CocActionAsync('format')
+
+" Add `:Fold` command to fold current buffer.
+command! -nargs=? Fold :call     CocAction('fold', <f-args>)
+
+" Add `:OR` command for organize imports of the current buffer.
+command! -nargs=0 OR   :call     CocActionAsync('runCommand', 'editor.action.organizeImport')
+
+" Add (Neo)Vim's native statusline support.
+" NOTE: Please see `:h coc-status` for integrations with external plugins that
+" provide custom statusline: lightline.vim, vim-airline.
+set statusline^=%{coc#status()}%{get(b:,'coc_current_function','')}
+
+" Mappings for CoCList
+" Show all diagnostics.
+nnoremap <silent><nowait> <space>a  :<C-u>CocList diagnostics<cr>
+" Manage extensions.
+nnoremap <silent><nowait> <space>e  :<C-u>CocList extensions<cr>
+" Show commands.
+nnoremap <silent><nowait> <space>c  :<C-u>CocList commands<cr>
+" Find symbol of current document.
+nnoremap <silent><nowait> <space>o  :<C-u>CocList outline<cr>
+" Search workspace symbols.
+nnoremap <silent><nowait> <space>s  :<C-u>CocList -I symbols<cr>
+" Do default action for next item.
+nnoremap <silent><nowait> <space>j  :<C-u>CocNext<CR>
+" Do default action for previous item.
+nnoremap <silent><nowait> <space>k  :<C-u>CocPrev<CR>
+" Resume latest coc list.
+nnoremap <silent><nowait> <space>p  :<C-u>CocListResume<CR>}}}
